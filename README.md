@@ -1,2 +1,2 @@
-# Dogecoin-trading-bot
-Trading on Dogecoin with 3X margin with 10X profits by scrapping Elon Musk's Twitter 
+1. Made 10x profit based on this simple algorithm
+2. Also be careful of risk management given the edge case of Elon Musk's posts.
