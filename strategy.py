@@ -1,33 +1,21 @@
-# 从二次封装的okex API接口导入相关类
-# 也可以替换成其他交易所的接口，比如：huobi、binance、bitmex等等
 import okex.spot_api as spot
 import okex.swap_api as swap
 import okex.futures_api as future
 import okex.account_api as account
-# 导入日志记录模块
 import logging
-# 导入时间记录模块
 import time
-# 导入数学计算模块
 import math
-# 导入科学计算模块
 import numpy
-# 导入json格式模块
 import json
-# 导入talib指标计算模块
 import talib
-# 导入pandas科学计算模块
 import pandas
-# 导入smtp邮箱协议模块
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
-# 导入网络请求模块 钉钉报警
 import requests
 
-# 策略主类
+
 class strategy():
-    # 实例化类的时候 会执行以下代码
     def __init__(self, name,api_key,seceret_key,passphrase,instrument_id,mode,granularity,leverate):
         self.version = "version：1.1.3"
         self.name = name
@@ -52,7 +40,6 @@ class strategy():
         self.jump_mode = 'None'
         self.jump_price = 0
 
-    # 启动日志记录
     def InitLog(self):
         level = logging.INFO
         self.log = logging.getLogger(__name__)
