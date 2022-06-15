@@ -44,7 +44,7 @@ class strategy():
         level = logging.INFO
         self.log = logging.getLogger(__name__)
         self.log.setLevel(level)
-        handler = logging.FileHandler("运行日志%s.txt" %time.strftime("%Y-%m-%d %H-%M-%S"))
+        handler = logging.FileHandler("Program log%s.txt" %time.strftime("%Y-%m-%d %H-%M-%S"))
         handler.setLevel(level)
         formatter = logging.Formatter('[%(asctime)s] %(message)s')
         handler.setFormatter(formatter)
@@ -161,7 +161,7 @@ class strategy():
         self.close = close.astype(numpy.float64)
         self.vol = vol.astype(numpy.float64)
         self.close_price = self.close[-1]
-        self.log.info("最新价格： %5.4f" % (self.close_price))
+        self.log.info("Current Price： %5.4f" % (self.close_price))
 
     def HandleBar(self, mode):
         if "boll" in mode:self.StrategyBoll()
@@ -493,9 +493,8 @@ class strategy():
         if last_close < sar[-2] and pre_last_close > sar[-3]:
             self.pd += self.one_hand
             self.kk += self.one_hand
-        self.log.info('策略： SAR  信号： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
+        self.log.info('Strategy： SAR  Signal： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
 
-    # 获取账号信息
     def GetAccount(self):
         result = self.swap.get_coin_account(self.instrument_id)
         if result["info"]["equity"] == "":
