@@ -54,7 +54,6 @@ class strategy():
         self.log.addHandler(console)
         self.PrintConfig()
     
-    # 钉钉报警方法
     def dingmessage(self, msg, at_all):
         webhook = 'https://oapi.dingtalk.com/robot/send?access_token=9c1cf30275ac4fe57b41c05263a56c800aeec5ba4efe589737321a6af28c4f08'
         header = {
@@ -78,29 +77,25 @@ class strategy():
         info = requests.post(url=webhook,data=message_json,headers=header)
         print(info.text)
 
-    # 打印当前策略参数
     def PrintConfig(self):
-        self.dingmessage('启动程序：'+self.name, False)
-        self.log.info('启动程序：'+self.name)
-        self.log.info("版本：%s" % self.version)
-        self.log.info("当前模式：%s" % self.mode)
-        self.log.info("最大持仓量：%s" % self.take_limit)
-        self.log.info("K线类别：%s" % self.granularity)
-        self.log.info("单次开仓数量：%s" % self.one_hand)
-        self.log.info("止盈比例：%s" % self.win_cut)
-        self.log.info("止损比例:%s" % self.loss_cut)
+        self.dingmessage('Program：'+self.name, False)
+        self.log.info('Program：'+self.name)
+        self.log.info("Version：%s" % self.version)
+        self.log.info("Current Mode：%s" % self.mode)
+        self.log.info("Largest Hold Position：%s" % self.take_limit)
+        self.log.info("Granularity：%s" % self.granularity)
+        self.log.info("Single Largest Position：%s" % self.one_hand)
+        self.log.info("Stop Profit %：%s" % self.win_cut)
+        self.log.info("Stop Loss %:%s" % self.loss_cut)
 
-    # 实例化交易所API接口
     def LogIn(self):
         # self.spot = spot.SpotAPI(self.api_key, self.seceret_key, self.passphrase, True)
         self.swap = swap.SwapAPI(self.api_key, self.seceret_key, self.passphrase, True)
         # self.future = future.FutureAPI(self.api_key, self.seceret_key, self.passphrase, True)
 
-    # 盘前准备
     def BeforeTrade(self):
         pass
 
-    # 计算指标
     def GetTaLib(self):
         # sar
         self.sar = talib.SAR(self.high, self.low, acceleration=0.05, maximum=0.2)
@@ -145,7 +140,6 @@ class strategy():
         # cci
         self.cci = talib.CCI(self.high, self.low, self.close, timeperiod=14)
 
-    # 获取K线
     def GetKline(self):
         kline = self.swap.get_kline(self.instrument_id, granularity=self.granularity, start='', end='')
         # get close high  low vol
@@ -169,7 +163,6 @@ class strategy():
         self.close_price = self.close[-1]
         self.log.info("最新价格： %5.4f" % (self.close_price))
 
-    # 选择指定的策略执行
     def HandleBar(self, mode):
         if "boll" in mode:self.StrategyBoll()
         if "rsi" in mode: self.StrategyRsi()
@@ -179,7 +172,6 @@ class strategy():
         if 'jump' in mode:self.StrategyJump()
         if 'boll_break' in mode:self.StrategyBollBreak()
 
-    # 检查当前风控
     def CheckRisks(self):
         # get leverage
         leverage = float(self.position['holding'][0]['leverage'])
@@ -190,15 +182,15 @@ class strategy():
         short_rate = 0
         if self.long_avg_cost:
             long_rate = ((self.close_price - self.long_avg_cost) / self.long_avg_cost) * leverage
-            self.log.info("多单盈利： %5.2f %%" % round(long_rate * 100, 2))
+            self.log.info("Long Proft： %5.2f %%" % round(long_rate * 100, 2))
         if self.short_avg_cost:
             short_rate = ((self.short_avg_cost - self.close_price) / self.short_avg_cost) * leverage
-            self.log.info("空单盈利： %5.2f %%" % round(short_rate * 100, 2))
+            self.log.info("Short Profit： %5.2f %%" % round(short_rate * 100, 2))
         if long_rate > 0:
             self.long_rate_history.append(long_rate)
             long_drawback = (max(self.long_rate_history) - long_rate) / max(self.long_rate_history)
             if long_drawback > drawback_cut and max(self.long_rate_history) > win_cut / 4:
-                msg = "回撤过大，平多"
+                msg = "Maximum drawdown, close the position"
                 self.log.info(msg)
                 self.pd += self.one_hand
         else:
@@ -207,24 +199,23 @@ class strategy():
             self.short_rate_history.append(short_rate)
             short_drawback = (max(self.short_rate_history) - short_rate) / max(self.short_rate_history)
             if short_drawback > drawback_cut and max(self.short_rate_history) > win_cut / 4:
-                msg = "回撤过大，平空"
+                msg = "Maximum drawdown, close the position"
                 self.log.info(msg)
                 self.pk += self.one_hand
         else:
             self.short_rate_history.clear()
         # handle risks
         if long_rate < loss_cut or long_rate > win_cut:
-            msg = "警告： 马上平多"
+            msg = "Alert： Open the position"
             self.dingmessage(msg, True)
             self.log.info(msg)
             self.pd += self.buy_available
         if short_rate < loss_cut or short_rate > win_cut:
-            msg = "警告： 马上平空"
+            msg = "Alert： Close the position"
             self.dingmessage(msg, True)
             self.log.info(msg)
             self.pk += self.sell_available
 
-    # 获取当前持仓
     def GetPosition(self):
         self.position = self.swap.get_specific_position(self.instrument_id)
         self.buy_amount = 0
@@ -244,13 +235,11 @@ class strategy():
                 self.sell_available = int(data['avail_position'])
                 if float(data['avg_cost'])>0:
                     self.short_avg_cost = float(data['avg_cost'])
-        self.log.info("当前持仓:  多仓/可平 %d/%d  空仓/可平 %d/%d" \
+        self.log.info("Current Pisition:  Long Position/Can be closed %d/%d  Short Position//Can be closed %d/%d" \
                       % (self.buy_amount,self.buy_available,self.sell_amount,self.sell_available))
 
-    # 移动止盈
     def lottery(self):
         time.sleep(0.1)
-        self.log.info('挂止盈单')
         self.GetPosition()
         if self.buy_available  >= 1 * self.one_hand:self.TakeOrders("pd", self.close_price * 1.001, self.one_hand*1, "0")
         if self.buy_available  >= 3 * self.one_hand:self.TakeOrders("pd", self.close_price * 1.002, self.one_hand*2, "0")
@@ -263,7 +252,6 @@ class strategy():
         if self.sell_available >=10 * self.one_hand:self.TakeOrders("pk", self.close_price * 0.996, self.one_hand*4, "0")
         if self.sell_available >=15 * self.one_hand:self.TakeOrders("pk", self.close_price * 0.995, self.one_hand*5, "0")
 
-    # 检查当前订单情况
     def check_orders(self,status):
         # get orders list
         # status:-1:remove 0:wait 1:part 2:full
@@ -276,42 +264,38 @@ class strategy():
                 orders_id.append(result['order_info'][index]['order_id'])
         return orders_id
 
-    # 撤销指定订单
     def remove_orders(self, orders_id):
         result = []
         for id in orders_id:
             result.append(self.swap.revoke_order(instrument_id=self.instrument_id, order_id=id))
         return result
 
-    # 撤销所有订单
     def CleanOrders(self):
         orders_id = self.check_orders("1")
         self.remove_orders(orders_id)
         orders_id = self.check_orders("0")
         self.remove_orders(orders_id)
 
-    # 处理下单信号
     def HandleOrders(self):
-        self.log.info('处理下单信号：')
+        self.log.info('Place Order Signal：')
         kd, kk, pd, pk = self.kd, self.kk, self.pd, self.pk
         self.kd, self.kk, self.pd, self.pk = 0, 0, 0, 0
         if kd + kk + pd + pk > 0:
-            self.log.info('提示： kd:%d  kk:%d  pd:%d  pk:%d'%(kd, kk, pd, pk))
+            self.log.info('Notice： kd:%d  kk:%d  pd:%d  pk:%d'%(kd, kk, pd, pk))
         if pd > 0:kd = 0
         if pk > 0:kk = 0
-        self.log.info('提示： kd:%d  kk:%d  pd:%d  pk:%d'%(kd, kk, pd, pk))
+        self.log.info('Notice： kd:%d  kk:%d  pd:%d  pk:%d'%(kd, kk, pd, pk))
         if kd > 0:
-            self.dingmessage('提示： 开仓请注意！', True)
+            self.dingmessage('Notice： Build position！', True)
             self.TakeOrders("kd", self.close_price, kd, "1")
         if kk > 0:
-            self.dingmessage('提示： 开仓请注意！', True)
+            self.dingmessage('Notice： Build position！', True)
             self.TakeOrders("kk", self.close_price, kk, "1")
         if pd > 0:
             self.TakeOrders("pd", self.close_price, pd, "1")
         if pk > 0:
             self.TakeOrders("pk", self.close_price, pk, "1")
         
-    # 下单函数
     def TakeOrders(self,signal,price,amount,match_price):
         result=[]
         amount = int(amount)
@@ -339,12 +323,11 @@ class strategy():
                     result = self.swap.take_order(self.instrument_id, str(amount), '3', str(price), '',match_price)
                 if signal == "sypk" and self.sell_available > self.take_limit/2:
                     result = self.swap.take_order(self.instrument_id, str(amount), '4', str(price), '',match_price)
-                self.log.info("开始下单： %s  %s张" % (signal, str(amount)))
+                self.log.info("Place Order： %s  %s units" % (signal, str(amount)))
                 self.log.info(result)
         except Exception as e:
             self.log.info(e)
 
-    # 检查K线形态
     def CheckKline(self):
         open = self.open[-2]
         close = self.close[-2]
@@ -357,17 +340,17 @@ class strategy():
         if vol > 2 * vol_ma and amp/amp_ma > 1:
             if open > close:
                 if (high - open) > (open - close) or (high - open) > 0.5:
-                    self.log.info('提示： 发现长上影线')
+                    self.log.info('Up trendy')
                     self.pd += self.one_hand
                 if (close - low) > (open - close) or (close - low) > 0.5:
-                    self.log.info('提示： 发现长下影线')
+                    self.log.info('Down trendy')
                     self.pk += self.one_hand
             if close > open:
                 if (high - close) > (close - open) or (high - close) > 0.5:
-                    self.log.info('提示： 发现长上影线')
+                    self.log.info('Up trendy')
                     self.pd += self.one_hand
                 if (open - low) > (close - open) or (open - low) > 0.5:
-                    self.log.info('提示： 发现长下影线')
+                    self.log.info('Down trendy')
                     self.pk += self.one_hand
 
     def StrategyBollBreak(self):
@@ -384,9 +367,8 @@ class strategy():
             self.kk += self.one_hand
         if close[-1] > middle[-1] and close[-2] < middle[-2]  and self.sell_amount > 0:
             self.pk += self.one_hand
-        self.log.info('策略： BOLL BREAK  信号： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
+        self.log.info('Strategy： BOLL BREAK  Signal： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
 
-    # BOLL策略
     def StrategyBoll(self):
         kd, kk, pd, pk = self.kd, self.kk, self.pd, self.pk
         upper = self.upper
@@ -415,9 +397,8 @@ class strategy():
                 self.pk += self.one_hand
             if trend_cur < trend_pre and middle[-2] < middle[-3]:
                 self.pd += self.one_hand
-        self.log.info('策略： BOLL  信号： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
+        self.log.info('Strategy： BOLL  Signal： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
 
-    # RSI策略
     def StrategyRsi(self):
         kd, kk, pd, pk = self.kd, self.kk, self.pd, self.pk
         rsi6 = self.rsi6
@@ -434,9 +415,8 @@ class strategy():
             self.pk += self.one_hand
         if rsi6[-2] < rsi24[-2] and rsi6[-3] > rsi24[-3]:
             self.pd += self.one_hand
-        self.log.info('策略： RSI  信号： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
+        self.log.info('Strategy： RSI  Signal： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
 
-    # CCI策略
     def StrategyCCI(self):
         kd, kk, pd, pk = self.kd, self.kk, self.pd, self.pk
         cci = self.cci
@@ -448,13 +428,11 @@ class strategy():
             self.kk += self.one_hand
         if cci[-2] > -100 and cci[-3] < -100:
             self.kd += self.one_hand
-        self.log.info('策略： CCI  信号： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
+        self.log.info('Strategy： CCI  Signal： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
 
-    # JUMP策略
     def StrategyJump(self):
         kd, kk, pd, pk = self.kd, self.kk, self.pd, self.pk
         step = self.close_price * 0.003
-        # 正向
         if self.jump_mode == 'None':
             if self.close_price > self.high[-2]:
                 # self.kd += self.one_hand
@@ -484,10 +462,9 @@ class strategy():
                 self.pk += self.sell_amount
                 self.jump_price = self.close_price
                 self.jump_mode = 'long'
-        self.log.info('策略： JUMP  信号： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))        
+        self.log.info('Strategy： JUMP  Signal： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))        
         self.log.info('mode:%s  price:%f'%(self.jump_mode, self.jump_price))
 
-    # DC通道策略
     def StrategyDC(self):
         kd, kk, pd, pk = self.kd, self.kk, self.pd, self.pk
         upp_kd = self.DC_kd
@@ -495,7 +472,6 @@ class strategy():
         low_kk = self.DC_kk
         low_pd = self.DC_pd
         close = self.close[-1]
-        # 
         if close > upp_kd:
             self.kd += self.one_hand
         if close < low_kk :
@@ -504,9 +480,8 @@ class strategy():
             self.pd += self.one_hand
         if close > upp_pk:
             self.pk += self.one_hand
-        self.log.info('策略： DC  信号： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
+        self.log.info('Signal： kd:%d  kk:%d  pd:%d  pk:%d'%(self.kd - kd, self.kk- kk, self.pd - pd, self.pk - pk))
 
-    # SAR策略
     def StrategySar(self):
         kd, kk, pd, pk = self.kd, self.kk, self.pd, self.pk
         last_close = self.close[-2]
@@ -532,7 +507,6 @@ class strategy():
                 self.ding_time = time.time()
                 self.dingmessage('%s %s'%(self.instrument_id, self.total_coin), False)
 
-    # 策略运行主函数
     def Run(self):
         time.sleep(time.time()%int(self.granularity))
         self.LogIn()
@@ -541,69 +515,37 @@ class strategy():
         # self.log.info(result)
         while True:
             try:
-                # 记录本次循环开始时间
                 start_time = time.time()
-                # 记录当前时间
-                self.log.info("---===当前时间：%s===---" % time.strftime("%Y-%m-%d %H:%M:%S"))
-                # 撤销上一轮全部挂单
+                self.log.info("---===Current Time：%s===---" % time.strftime("%Y-%m-%d %H:%M:%S"))
                 self.CleanOrders()
-                # 获取账户信息
                 self.GetAccount()
-                # 获取仓位信息
                 self.GetPosition()
-                # 获取k线信息
                 self.GetKline()
-                # 计算技术指标
                 self.GetTaLib()
-                # 产生择时信号
                 self.HandleBar(self.mode)
-                # 检查k线形态 
                 self.CheckKline()
-                # 检查风控
                 self.CheckRisks()
-                # 处理下单信号
                 self.HandleOrders()
-                # 撤销全部订单 
                 self.CleanOrders()
-                # 刮彩票
                 self.lottery()
-                # 日志空行
                 self.log.info(" ")
-                # 记录本次循环结束时间
                 end_time = time.time()
-                # 计算本次循环耗费的时间
                 spend_time = end_time - start_time
-                # 睡眠指定时间后进入下一次循环
                 time.sleep(int(self.granularity) - spend_time)
             except Exception:
-                # 将程序错误信息报警
-                self.log.error("警告 趋势策略出现错误", exc_info=True)
-                self.dingmessage('警告 趋势策略出现错误', True)
+                self.log.error("Trend error", exc_info=True)
+                self.dingmessage('Trend error', True)
                 time.sleep(int(self.granularity))
 
-# 公众号： 千千的量化世界
-# 回复：目录 策略 趋势追踪   获取本代码
-# 感谢大家对千千量化的支持与厚爱 将持续做好开源 为大家带来更多的干货
 
-# 程序开始的地方
 if __name__ == '__main__':
-    # 账号
     api_key = ''
-    # 密码
     seceret_key = ''
-    # 二级密码
     passphrase = 'qwer1234'
-    # 选择策略
     mode = ['boll_break', 'jump', 'rsi']
-    # 时间粒度 s
     granularity = "3600"
-    # 杠杆
     leverate = "5"
-    # 交易对
     instrument_id = "ETH-USD-SWAP"
-    # 策略名称
-    name = "趋势追踪者"
-    # 实例化类
+    name = "trend follower"
     my_strategy = strategy(name, api_key, seceret_key, passphrase, instrument_id, mode, granularity, leverate)
-    # 运行类的主逻辑函数
     my_strategy.Run()
